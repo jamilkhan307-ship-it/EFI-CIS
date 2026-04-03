@@ -1,0 +1,76 @@
+{
+  "url": "https://sscpfvgxuqwmrqpkbqwd.supabase.co",
+  "tables": {
+    "users": {
+      "status": "OK",
+      "rows": 2
+    },
+    "cir_records": {
+      "status": "OK",
+      "rows": 0
+    },
+    "form_config": {
+      "status": "OK",
+      "rows": 1
+    },
+    "system_settings": {
+      "status": "OK",
+      "rows": 1
+    },
+    "section_access_overrides": {
+      "status": "OK",
+      "rows": 1
+    },
+    "audit_logs": {
+      "status": "OK",
+      "rows": 0
+    },
+    "form_change_logs": {
+      "status": "OK",
+      "rows": 1
+    },
+    "master_customers": {
+      "status": "OK",
+      "rows": 0
+    },
+    "master_categories": {
+      "status": "OK",
+      "rows": 0
+    },
+    "master_packaging": {
+      "status": "OK",
+      "rows": 0
+    },
+    "master_ppap_levels": {
+      "status": "OK",
+      "rows": 0
+    },
+    "master_materials": {
+      "status": "OK",
+      "rows": 0
+    },
+    "master_departments": {
+      "status": "OK",
+      "rows": 0
+    }
+  },
+  "auth": {
+    "status": "OK",
+    "email": "nbd@emmforce.com",
+    "id": "3e610b21-c539-4147-b0a8-90466ba8105c"
+  },
+  "users": [
+    {
+      "name": "Super Admin",
+      "email": "nbd@emmforce.com",
+      "role": "SUPER_ADMIN",
+      "is_active": true
+    },
+    {
+      "name": "Test User",
+      "email": "test@test.com",
+      "role": "INITIATOR",
+      "is_active": true
+    }
+  ]
+}
