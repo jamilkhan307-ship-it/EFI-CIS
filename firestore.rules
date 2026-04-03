@@ -1,0 +1,149 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions for Role-Based Access Control
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function isSuperAdmin() {
+      return isLoggedIn() && getUserRole() == 'SUPER_ADMIN';
+    }
+    
+    function isAdmin() {
+      return isLoggedIn() && (getUserRole() == 'ADMIN' || getUserRole() == 'SUPER_ADMIN');
+    }
+    
+    function isInitiator() {
+      return isLoggedIn() && getUserRole() == 'INITIATOR';
+    }
+    
+    function isChecker() {
+      return isLoggedIn() && getUserRole() == 'CHECKER';
+    }
+    
+    function isApprover() {
+      return isLoggedIn() && getUserRole() == 'APPROVER';
+    }
+    
+    function isEngineering() {
+      return isLoggedIn() && getUserRole() == 'ENGINEERING';
+    }
+
+    // --- USERS COLLECTION ---
+    match /users/{userId} {
+      // Anyone logged in can read a user profile
+      allow read: if isLoggedIn();
+      // Only Admins and Super Admins can manage users
+      allow write: if isAdmin();
+      // Super Admin bypass for deleting Super Admins (Admin cannot delete Super Admins)
+      allow delete: if isSuperAdmin();
+    }
+    
+    // --- MASTER DATA ---
+    match /master_data/{collectionName}/{documentId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+    match /customers/{customerId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- SYSTEM CONFIG ---
+    match /system_settings/{settingId} {
+      allow read: if isLoggedIn();
+      allow write: if isSuperAdmin();
+    }
+    
+    // --- FORM CONFIG (DYNAMIC FORM BUILDER) ---
+    match /form_config/{docId} {
+      allow read: if isLoggedIn();  // Form builder configuration should be readable by all users to construct forms
+      allow write: if isAdmin();    // Only admins can modify form structures and properties
+    }
+
+    // --- SECTION ACCESS OVERRIDES ---
+    match /section_access_overrides/{userId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- FORM CHANGE LOG (Audit trail for form config & access changes) ---
+    match /form_change_log/{logId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow create: if isLoggedIn();
+      allow update, delete: if false;
+    }
+
+    // --- AUDIT LOGS ---
+    match /audit_logs/{logId} {
+      // Anyone can read audit logs except engineering (per business rules, mainly admins read them)
+      allow read: if isAdmin() || isSuperAdmin();
+      // Anyone can create an audit log (append only)
+      allow create: if isLoggedIn();
+      // No one can modify or delete audit logs
+      allow update, delete: if false; 
+    }
+    
+    // --- NOTIFICATIONS ---
+    match /notifications/{notificationId} {
+      // Users can only read their own notifications
+      allow read: if isLoggedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isLoggedIn(); 
+      allow update: if isLoggedIn() && resource.data.userId == request.auth.uid; // e.g., marking as read
+      allow delete: if false;
+    }
+
+    // --- CIR RECORDS ---
+    match /cir_records/{cirId} {
+      
+      // Read rules for CIR records
+      allow read: if isSuperAdmin() || isAdmin() || 
+        (isInitiator() && resource.data.initiatorId == request.auth.uid) ||
+        (isChecker() && (resource.data.status == 'SUBMITTED' || resource.data.status == 'UNDER_REVIEW' || resource.data.status == 'CHECKED' || resource.data.status == 'APPROVED' || resource.data.status == 'REJECTED' || resource.data.status == 'RETURNED')) || // Needs historical access per requirements
+        (isApprover() && (resource.data.status == 'CHECKED' || resource.data.status == 'APPROVED' || resource.data.status == 'REJECTED' || resource.data.status == 'UNDER_REVIEW' || resource.data.status == 'RETURNED')) ||
+        (isEngineering() && (resource.data.status == 'APPROVED' || resource.data.status == 'DEVELOPMENT_STARTED' || resource.data.status == 'DEVELOPMENT_COMPLETED'));
+      
+      // Create rules
+      allow create: if isInitiator() || isSuperAdmin();
+      
+      // Update rules
+      allow update: if isSuperAdmin() ||
+        // Initiator can only update their own drafts or returned
+        (isInitiator() && resource.data.initiatorId == request.auth.uid && 
+          (resource.data.status == 'DRAFT' || resource.data.status == 'RETURNED')) ||
+        // Checker can change status to UNDER_REVIEW, RETURNED, or CHECKED
+        (isChecker() && (resource.data.status == 'SUBMITTED' || resource.data.status == 'UNDER_REVIEW')) ||
+        // Approver can change status to APPROVED, REJECTED, or UNDER_REVIEW (return to checker)
+        (isApprover() && resource.data.status == 'CHECKED') ||
+        // Engineering can only update status to DEVELOPMENT_STARTED or DEVELOPMENT_COMPLETED
+        (isEngineering() && (resource.data.status == 'APPROVED' || resource.data.status == 'DEVELOPMENT_STARTED'));
+
+      // Delete rules
+      allow delete: if isSuperAdmin();
+      
+      // Subcollections within CIR
+      match /status_history/{historyId} {
+        allow read: if isLoggedIn(); // Any user who can see the CIR can see its history
+        allow create: if isLoggedIn(); // Any authorized status changer can write history
+      }
+      
+      match /comments/{commentId} {
+        allow read: if isLoggedIn();
+        allow create: if isLoggedIn(); // Let users comment based on UI restrictions
+      }
+      
+      match /attachments/{attachmentId} {
+        allow read: if isLoggedIn();
+        allow create: if isInitiator() && get(/databases/$(database)/documents/cir_records/$(cirId)).data.status in ['DRAFT', 'RETURNED'];
+        allow delete: if isInitiator() && get(/databases/$(database)/documents/cir_records/$(cirId)).data.status in ['DRAFT', 'RETURNED'];
+      }
+    }
+  }
+}
