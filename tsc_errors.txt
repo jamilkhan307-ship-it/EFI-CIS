@@ -1,0 +1,2 @@
+﻿src/hooks/useSessionTimeout.ts(8,29): error TS2503: Cannot find namespace 'NodeJS'.
+src/pages/dashboards/AdminDashboard.tsx(5,40): error TS6133: 'isSuperAdmin' is declared but its value is never read.
